@@ -7,6 +7,7 @@ a transition can be: (data['obs'][t], data['acs'][t], data['obs'][t+1]) and get 
 
 from baselines import logger
 import numpy as np
+import os.path as osp
 
 
 class Dset(object):
@@ -37,6 +38,63 @@ class Dset(object):
         labels = self.labels[self.pointer:end, :]
         self.pointer = end
         return inputs, labels
+
+
+
+#class Atari_Dset(object):
+#    def __init__(self, expert_path, train_fraction=0.7, traj_limitation=-1, randomize=True):
+#        acs = pd.read_csv(osp.join(expert_path, 'trajectories', 'pinball'), header=1)
+#        if traj_limitation < 0:
+#            traj_limitation = len(acs)
+#        acs = acs[:traj_limitation]
+#
+#        # obs, acs: shape (N, L, ) + S where N = # episodes, L = episode length
+#        # and S is the environment observation/action space.
+#        # Flatten to (N * L, prod(S))
+#        self.obs = np.reshape(obs, [-1, np.prod(obs.shape[2:])])
+#        self.acs = np.reshape(acs, [-1, np.prod(acs.shape[2:])])
+#
+#        self.rets = traj_data['ep_rets'][:traj_limitation]
+#        self.avg_ret = sum(self.rets)/len(self.rets)
+#        self.std_ret = np.std(np.array(self.rets))
+#        if len(self.acs) > 2:
+#            self.acs = np.squeeze(self.acs)
+#        assert len(self.obs) == len(self.acs)
+#        self.num_traj = min(traj_limitation, len(traj_data['obs']))
+#        self.num_transition = len(self.obs)
+#        self.randomize = randomize
+#        self.dset = Dset(self.obs, self.acs, self.randomize)
+#        # for behavior cloning
+#        self.train_set = Dset(self.obs[:int(self.num_transition*train_fraction), :],
+#                              self.acs[:int(self.num_transition*train_fraction), :],
+#                              self.randomize)
+#        self.val_set = Dset(self.obs[int(self.num_transition*train_fraction):, :],
+#                            self.acs[int(self.num_transition*train_fraction):, :],
+#                            self.randomize)
+#        self.log_info()
+#
+#    def log_info(self):
+#        logger.log("Total trajectorues: %d" % self.num_traj)
+#        logger.log("Total transitions: %d" % self.num_transition)
+#        logger.log("Average returns: %f" % self.avg_ret)
+#        logger.log("Std for returns: %f" % self.std_ret)
+#
+#    def get_next_batch(self, batch_size, split=None):
+#        if split is None:
+#            return self.dset.get_next_batch(batch_size)
+#        elif split == 'train':
+#            return self.train_set.get_next_batch(batch_size)
+#        elif split == 'val':
+#            return self.val_set.get_next_batch(batch_size)
+#        else:
+#            raise NotImplementedError
+
+    def plot(self):
+        import matplotlib.pyplot as plt
+        plt.hist(self.rets)
+        plt.savefig("histogram_rets.png")
+        plt.close()
+
 
 
 class Mujoco_Dset(object):

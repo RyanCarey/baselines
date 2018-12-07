@@ -7,6 +7,7 @@ import numpy as np
 
 from baselines.common.mpi_running_mean_std import RunningMeanStd
 from baselines.common import tf_util as U
+from tensorflow.contrib.layers import convolution2d, flatten
 
 def logsigmoid(a):
     '''Equivalent to tf.log(tf.sigmoid(a))'''
@@ -23,10 +24,10 @@ class TransitionClassifier(object):
         self.observation_shape = env.observation_space.shape
         self.actions_shape = env.action_space.shape
         self.input_shape = tuple([o+a for o, a in zip(self.observation_shape, self.actions_shape)])
-        self.num_actions = env.action_space.shape[0]
+        self.num_actions = env.action_space.n
         self.hidden_size = hidden_size
         self.build_ph()
-        # Build grpah
+        # Build graph
         generator_logits = self.build_graph(self.generator_obs_ph, self.generator_acs_ph, reuse=False)
         expert_logits = self.build_graph(self.expert_obs_ph, self.expert_acs_ph, reuse=True)
         # Build accuracy
@@ -67,7 +68,9 @@ class TransitionClassifier(object):
             with tf.variable_scope("obfilter"):
                 self.obs_rms = RunningMeanStd(shape=self.observation_shape)
             obs = (obs_ph - self.obs_rms.mean / self.obs_rms.std)
-            _input = tf.concat([obs, acs_ph], axis=1)  # concatenate the two input -> form a transition
+            con = convolution2d(obs, num_outputs=128, kernel_size=4, stride=2)
+            fl = flatten(con)
+            _input = tf.concat([fl, acs_ph[:, tf.newaxis]], axis=1)  # concatenate the two input -> form a transition
             p_h1 = tf.contrib.layers.fully_connected(_input, self.hidden_size, activation_fn=tf.nn.tanh)
             p_h2 = tf.contrib.layers.fully_connected(p_h1, self.hidden_size, activation_fn=tf.nn.tanh)
             logits = tf.contrib.layers.fully_connected(p_h2, 1, activation_fn=tf.identity)

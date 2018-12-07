@@ -18,7 +18,7 @@ from baselines.common import set_global_seeds, tf_util as U
 from baselines.common.misc_util import boolean_flag
 from baselines.common.mpi_adam import MpiAdam
 from baselines.gail.run_mujoco import runner
-from baselines.gail.dataset.mujoco_dset import Mujoco_Dset
+#from baselines.gail.dataset.mujoco_dset import Mujoco_Dset
 
 
 def argsparser():
@@ -61,11 +61,15 @@ def learn(env, policy_func, dataset, optim_batch_size=128, max_iters=1e4,
     adam.sync()
     logger.log("Pretraining with Behavior Cloning...")
     for iter_so_far in tqdm(range(int(max_iters))):
-        ob_expert, ac_expert = dataset.get_next_batch(optim_batch_size, 'train')
+        #ob_expert, ac_expert = dataset.get_next_batch(max_nb_transitions=optim_batch_size) #TODO: make this be train
+        ds = dataset.compile_data(max_nb_transitions=optim_batch_size)
+        ob_expert, ac_expert = ds['state'], ds['action']
         train_loss, g = lossandgrad(ob_expert, ac_expert, True)
         adam.update(g, optim_stepsize)
         if verbose and iter_so_far % val_per_iter == 0:
-            ob_expert, ac_expert = dataset.get_next_batch(-1, 'val')
+            #ob_expert, ac_expert = dataset.get_next_batch(-1, 'val')
+            ds = dataset.compile_data(max_nb_transitions=optim_batch_size)
+            ob_expert, ac_expert = ds['state'], ds['action']
             val_loss, _ = lossandgrad(ob_expert, ac_expert, True)
             logger.log("Training loss: {}, Validation loss: {}".format(train_loss, val_loss))
 
@@ -100,7 +104,7 @@ def main(args):
     task_name = get_task_name(args)
     args.checkpoint_dir = osp.join(args.checkpoint_dir, task_name)
     args.log_dir = osp.join(args.log_dir, task_name)
-    dataset = Mujoco_Dset(expert_path=args.expert_path, traj_limitation=args.traj_limitation)
+    dataset = Atari_Dataset(expert_path=args.expert_path)
     savedir_fname = learn(env,
                           policy_fn,
                           dataset,
