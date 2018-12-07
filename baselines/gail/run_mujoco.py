@@ -16,13 +16,14 @@ from baselines.common import set_global_seeds, tf_util as U
 from baselines.common.misc_util import boolean_flag
 from baselines import bench
 from baselines import logger
-from baselines.gail.dataset.mujoco_dset import Mujoco_Dset
+from baselines.gail.dataset.atari import AtariDataset
+#from baselines.gail.dataset.mujoco_dset import Atari_Dset
 from baselines.gail.adversary import TransitionClassifier
 
 
 def argsparser():
     parser = argparse.ArgumentParser("Tensorflow Implementation of GAIL")
-    parser.add_argument('--env_id', help='environment ID', default='Hopper-v2')
+    parser.add_argument('--env_id', help='environment ID', default='VideoPinballNoFrameskip-v4')
     parser.add_argument('--seed', help='RNG seed', type=int, default=0)
     parser.add_argument('--expert_path', type=str, default='data/deterministic.trpo.Hopper.0.00.npz')
     parser.add_argument('--checkpoint_dir', help='the directory to save model', default='checkpoint')
@@ -85,7 +86,7 @@ def main(args):
     args.log_dir = osp.join(args.log_dir, task_name)
 
     if args.task == 'train':
-        dataset = Mujoco_Dset(expert_path=args.expert_path, traj_limitation=args.traj_limitation)
+        dataset = AtariDataset(data_path=args.expert_path)
         reward_giver = TransitionClassifier(env, args.adversary_hidden_size, entcoeff=args.adversary_entcoeff)
         train(env,
               args.seed,
