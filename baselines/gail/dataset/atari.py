@@ -2,12 +2,33 @@ from os import path, listdir
 import numpy as np
 from scipy import stats as st
 import math
+import cv2
+
+def preprocess(state, resize_shape=(84,84)):
+    # Resize state
+    state = cv2.resize(state, resize_shape)
+
+    if len(state.shape) == 3:
+        if state.shape[2] == 3:
+            state = cv2.cvtColor(state, cv2.COLOR_RGB2GRAY)
+
+    # Check type is compatible
+    if state.dtype != np.float32:
+        state = state.astype(np.float32)
+
+    # normalize
+    if state.max() > 1:
+        state *= 1. / 255.
+
+    return state.reshape(-1, 84, 84)
+
+
 class AtariDataset():
 
     TRAJS_SUBDIR = 'trajectories'
     SCREENS_SUBDIR = 'screens'
 
-    def __init__(self, data_path):
+    def __init__(self, data_path, game):
         
         '''
             Loads the dataset trajectories into memory. 
@@ -15,61 +36,39 @@ class AtariDataset():
             the 'screens' and 'trajectories' folders. 
         '''
 
-        self.trajs_path = path.join(data_path, AtariDataset.TRAJS_SUBDIR)       
-        self.screens_path = path.join(data_path, AtariDataset.SCREENS_SUBDIR)
+        self.trajs_path = path.join(data_path, AtariDataset.TRAJS_SUBDIR, game)
+        self.screens_path = path.join(data_path, AtariDataset.SCREENS_SUBDIR, game)
+        self.game = game
     
         #check that the we have the trajs where expected
         assert path.exists(self.trajs_path)
         
         self.trajectories = self.load_trajectories()
 
-        # compute the stats after loading
-        self.stats = {}
-        for g in self.trajectories.keys():
-            self.stats[g] = {}
-            nb_games = self.trajectories[g].keys()
-
-            total_frames = sum([len(self.trajectories[g][traj]) for traj in self.trajectories[g]])
-            final_scores = [self.trajectories[g][traj][-1]['score'] for traj in self.trajectories[g]]
-
-            self.stats[g]['total_replays'] = len(nb_games)
-            self.stats[g]['total_frames'] = total_frames
-            self.stats[g]['max_score'] = np.max(final_scores)
-            self.stats[g]['min_score'] = np.min(final_scores)
-            self.stats[g]['avg_score'] = np.mean(final_scores)
-            self.stats[g]['stddev'] = np.std(final_scores)
-            self.stats[g]['sem'] = st.sem(final_scores)
-
-
     def load_trajectories(self):
-
         trajectories = {}
-        for game in listdir(self.trajs_path):
-            trajectories[game] = {}
-            game_dir = path.join(self.trajs_path, game)
-            for traj in listdir(game_dir):
-                curr_traj = []
-                with open(path.join(game_dir, traj)) as f:
-                    for i,line in enumerate(f):
-                        #first line is the metadata, second is the header
-                        if i > 1:
-                            #TODO will fix the spacing and True/False/integer in the next replay session
-                            #frame,reward,score,terminal, action
-                            curr_data = line.rstrip('\n').replace(" ","").split(',')
-                            if curr_data[3] not in ['True', 'False']: raise ValueError
-                            curr_trans = {}
-                            curr_trans['frame']    = int(curr_data[0])
-                            curr_trans['reward']   = int(curr_data[1])
-                            curr_trans['score']    = int(curr_data[2])
-                            curr_trans['terminal'] = True if curr_data[3]=='True' else False
-                            curr_trans['action']   = int(curr_data[4])
-                            curr_traj.append(curr_trans)
-                trajectories[game][int(traj.split('.txt')[0])] = curr_traj
+        for traj in listdir(self.trajs_path):
+            curr_traj = []
+            with open(path.join(self.trajs_path, traj)) as f:
+                for i,line in enumerate(f):
+                    #first line is the metadata, second is the header
+                    if i > 1:
+                        #TODO will fix the spacing and True/False/integer in the next replay session
+                        #frame,reward,score,terminal, action
+                        curr_data = line.rstrip('\n').replace(" ","").split(',')
+                        if curr_data[3] not in ['True', 'False', '1', '0']: raise ValueError
+                        curr_trans = {}
+                        curr_trans['frame']    = int(curr_data[0])
+                        curr_trans['reward']   = int(curr_data[1])
+                        curr_trans['score']    = int(curr_data[2])
+                        curr_trans['terminal'] = True if curr_data[3] in ['True', '1']  else False
+                        curr_trans['action']   = int(curr_data[4])
+                        curr_traj.append(curr_trans)
+            trajectories[int(traj.split('.txt')[0])] = curr_traj
         return trajectories
                    
 
-    def compile_data(self, dataset_path, game, score_lb=0, score_ub=math.inf, max_nb_transitions=None):
-
+    def compile_data(self, score_lb=0, score_ub=math.inf, max_nb_transitions=None):
         data = []
         shuffled_trajs = np.array(list(self.trajectories.keys()))
         np.random.shuffle(shuffled_trajs)

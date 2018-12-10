@@ -10,6 +10,7 @@ import baselines.common.tf_util as U
 from baselines.common.mpi_running_mean_std import RunningMeanStd
 from baselines.common.distributions import make_pdtype
 from baselines.acktr.utils import dense
+from tensorflow.contrib.layers import conv2d, flatten
 
 
 class MlpPolicy(object):
@@ -34,12 +35,15 @@ class MlpPolicy(object):
             self.ob_rms = RunningMeanStd(shape=ob_space.shape)
 
         obz = tf.clip_by_value((ob - self.ob_rms.mean) / self.ob_rms.std, -5.0, 5.0)
-        last_out = obz
+        with tf.variable_scope('vffc0'):
+            last_out = flatten(conv2d(obz, num_outputs=128, kernel_size=4, stride=8))
         for i in range(num_hid_layers):
             last_out = tf.nn.tanh(dense(last_out, hid_size, "vffc%i" % (i+1), weight_init=U.normc_initializer(1.0)))
         self.vpred = dense(last_out, 1, "vffinal", weight_init=U.normc_initializer(1.0))[:, 0]
 
-        last_out = obz
+        with tf.variable_scope('polfc0'):
+            last_out = flatten(conv2d(obz, num_outputs=128, kernel_size=4, stride=8))
+            #last_out = flatten(conv2d(obz, num_outputs=128, kernel_size=4, stride=2)) #TODO: this network is too big and crashes things
         for i in range(num_hid_layers):
             last_out = tf.nn.tanh(dense(last_out, hid_size, "polfc%i" % (i+1), weight_init=U.normc_initializer(1.0)))
 
