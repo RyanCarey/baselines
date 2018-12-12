@@ -86,7 +86,7 @@ def main(args):
     args.log_dir = osp.join(args.log_dir, task_name)
 
     if args.task == 'train':
-        dataset = AtariDataset(data_path=args.expert_path, game='pinball')
+        dataset = AtariDataset(data_path=args.expert_path, game='pinball', max_nb_transitions=5)
         reward_giver = TransitionClassifier(env, args.adversary_hidden_size, entcoeff=args.adversary_entcoeff)
         train(env,
               args.seed,
@@ -109,7 +109,7 @@ def main(args):
         runner(env,
                policy_fn,
                args.load_model_path,
-               timesteps_per_batch=1024,
+               timesteps_per_batch=256,
                number_trajs=10,
                stochastic_policy=args.stochastic_policy,
                save=args.save_sample
@@ -146,7 +146,7 @@ def train(env, seed, policy_fn, reward_giver, dataset, algo,
                        max_timesteps=num_timesteps,
                        ckpt_dir=checkpoint_dir, log_dir=log_dir,
                        save_per_iter=save_per_iter,
-                       timesteps_per_batch=1024,
+                       timesteps_per_batch=256,
                        max_kl=0.01, cg_iters=10, cg_damping=0.1,
                        gamma=0.995, lam=0.97,
                        vf_iters=5, vf_stepsize=1e-3,

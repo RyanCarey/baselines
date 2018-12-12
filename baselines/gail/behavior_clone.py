@@ -61,15 +61,11 @@ def learn(env, policy_func, dataset, optim_batch_size=128, max_iters=1e4,
     adam.sync()
     logger.log("Pretraining with Behavior Cloning...")
     for iter_so_far in tqdm(range(int(max_iters))):
-        #ob_expert, ac_expert = dataset.get_next_batch(max_nb_transitions=optim_batch_size) #TODO: make this be train
-        ds = dataset.compile_data(max_nb_transitions=optim_batch_size)
-        ob_expert, ac_expert = ds['state'], ds['action']
+        ob_expert, ac_expert = dataset.get_next_batch(optim_batch_size, 'train')
         train_loss, g = lossandgrad(ob_expert, ac_expert, True)
         adam.update(g, optim_stepsize)
         if verbose and iter_so_far % val_per_iter == 0:
-            #ob_expert, ac_expert = dataset.get_next_batch(-1, 'val')
-            ds = dataset.compile_data(max_nb_transitions=optim_batch_size)
-            ob_expert, ac_expert = ds['state'], ds['action']
+            ob_expert, ac_expert = dataset.get_next_batch(-1, 'val')
             val_loss, _ = lossandgrad(ob_expert, ac_expert, True)
             logger.log("Training loss: {}, Validation loss: {}".format(train_loss, val_loss))
 
