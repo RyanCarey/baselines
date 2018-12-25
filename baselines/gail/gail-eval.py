@@ -16,7 +16,7 @@ from baselines.gail import run_mujoco
 from baselines.gail import mlp_policy
 from baselines.common import set_global_seeds, tf_util as U
 from baselines.common.misc_util import boolean_flag
-from baselines.gail.dataset.mujoco_dset import Mujoco_Dset
+from baselines.gail.dataset.atari import AtariDataset
 
 
 plt.style.use('ggplot')
@@ -26,7 +26,7 @@ CONFIG = {
 
 
 def load_dataset(expert_path):
-    dataset = Mujoco_Dset(expert_path=expert_path)
+    dataset = AtariDataset(expert_path=expert_path)
     return dataset
 
 
@@ -35,7 +35,8 @@ def argsparser():
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--policy_hidden_size', type=int, default=100)
     parser.add_argument('--env', type=str, choices=['Hopper', 'Walker2d', 'HalfCheetah',
-                                                    'Humanoid', 'HumanoidStandup'])
+                                                    'Humanoid', 'HumanoidStandup', 'VideoPinballNoFrameskip-v4'])
+    parser.add_argument('--expert_path', type=str, default='data/atari_v2')
     boolean_flag(parser, 'stochastic_policy', default=False, help='use stochastic/deterministic policy to evaluate')
     return parser.parse_args()
 
@@ -52,9 +53,9 @@ def evaluate_env(env_name, seed, policy_hidden_size, stochastic, reuse, prefix):
         return mlp_policy.MlpPolicy(name=name, ob_space=ob_space, ac_space=ac_space,
                                     reuse=reuse, hid_size=policy_hidden_size, num_hid_layers=2)
 
-    data_path = os.path.join('data', 'deterministic.trpo.' + env_name + '.0.00.npz')
-    dataset = load_dataset(data_path)
-    checkpoint_list = glob.glob(os.path.join('checkpoint', '*' + env_name + ".*"))
+    #data_path = os.path.join('data', 'deterministic.trpo.' + env_name + '.0.00.npz')
+    dataset = AtariDataset(data_path=args.expert_path, game='pinball', max_nb_transitions=5) #TODO: change max_nb_transitions
+    checkpoint_list = glob.glob(os.path.join('checkpoint', '*' + 'VideoPinballNoFrameskip' + ".*"))
     log = {
         'traj_limitation': [],
         'upper_bound': [],
@@ -64,7 +65,7 @@ def evaluate_env(env_name, seed, policy_hidden_size, stochastic, reuse, prefix):
     }
     for i, limit in enumerate(CONFIG['traj_limitation']):
         # Do one evaluation
-        upper_bound = sum(dataset.rets[:limit])/limit
+        #upper_bound = sum(dataset.rets[:limit])/limit              #TODO: add back the upper bound feature
         checkpoint_dir = get_checkpoint_dir(checkpoint_list, limit, prefix=prefix)
         checkpoint_path = tf.train.latest_checkpoint(checkpoint_dir)
         env = gym.make(env_name + '-v1')
@@ -79,9 +80,9 @@ def evaluate_env(env_name, seed, policy_hidden_size, stochastic, reuse, prefix):
                                              reuse=((i != 0) or reuse))
         normalized_ret = avg_ret/upper_bound
         print('Upper bound: {}, evaluation returns: {}, normalized scores: {}'.format(
-            upper_bound, avg_ret, normalized_ret))
+            None, avg_ret, normalized_ret))
         log['traj_limitation'].append(limit)
-        log['upper_bound'].append(upper_bound)
+        #log['upper_bound'].append(upper_bound)
         log['avg_ret'].append(avg_ret)
         log['avg_len'].append(avg_len)
         log['normalized_ret'].append(normalized_ret)
@@ -90,10 +91,10 @@ def evaluate_env(env_name, seed, policy_hidden_size, stochastic, reuse, prefix):
 
 
 def plot(env_name, bc_log, gail_log, stochastic):
-    upper_bound = bc_log['upper_bound']
+    #upper_bound = bc_log['upper_bound']
     bc_avg_ret = bc_log['avg_ret']
     gail_avg_ret = gail_log['avg_ret']
-    plt.plot(CONFIG['traj_limitation'], upper_bound)
+    #plt.plot(CONFIG['traj_limitation'], upper_bound)
     plt.plot(CONFIG['traj_limitation'], bc_avg_ret)
     plt.plot(CONFIG['traj_limitation'], gail_avg_ret)
     plt.xlabel('Number of expert trajectories')

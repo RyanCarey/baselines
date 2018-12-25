@@ -202,7 +202,9 @@ def learn(env, policy_func, reward_giver, expert_dataset, rank,
 
     # Prepare for rollouts
     # ----------------------------------------
+    print('before: {}'.format(env.needs_reset))
     seg_gen = traj_segment_generator(pi, env, reward_giver, timesteps_per_batch, stochastic=True)
+    print('after: {}'.format(env.needs_reset))
 
     episodes_so_far = 0
     timesteps_so_far = 0

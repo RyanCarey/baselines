@@ -53,6 +53,7 @@ def argsparser():
     # Behavior Cloning
     boolean_flag(parser, 'pretrained', default=False, help='Use BC to pretrain')
     parser.add_argument('--BC_max_iter', help='Max iteration for training BC', type=int, default=1e4)
+    parser.add_argument('--play', default=False, action='store_true')
     return parser.parse_args()
 
 
@@ -86,7 +87,7 @@ def main(args):
     args.log_dir = osp.join(args.log_dir, task_name)
 
     if args.task == 'train':
-        dataset = AtariDataset(data_path=args.expert_path, game='pinball', max_nb_transitions=5)
+        dataset = AtariDataset(data_path=args.expert_path, game='pinball', max_nb_transitions=5) #TODO: change max_nb_transitions
         reward_giver = TransitionClassifier(env, args.adversary_hidden_size, entcoeff=args.adversary_entcoeff)
         train(env,
               args.seed,
@@ -112,7 +113,8 @@ def main(args):
                timesteps_per_batch=256,
                number_trajs=10,
                stochastic_policy=args.stochastic_policy,
-               save=args.save_sample
+               save=args.save_sample,
+               play=args.play,
                )
     else:
         raise NotImplementedError
@@ -156,7 +158,7 @@ def train(env, seed, policy_fn, reward_giver, dataset, algo,
 
 
 def runner(env, policy_func, load_model_path, timesteps_per_batch, number_trajs,
-           stochastic_policy, save=False, reuse=False):
+           stochastic_policy, save=False, reuse=False, play=False):
 
     # Setup network
     # ----------------------------------------
@@ -173,7 +175,10 @@ def runner(env, policy_func, load_model_path, timesteps_per_batch, number_trajs,
     len_list = []
     ret_list = []
     for _ in tqdm(range(number_trajs)):
-        traj = traj_1_generator(pi, env, timesteps_per_batch, stochastic=stochastic_policy)
+        env.allow_early_resets = True
+        #print("before: {}".format(env.needs_reset))
+        traj = traj_1_generator(pi, env, timesteps_per_batch, stochastic=stochastic_policy, play=play)
+        #print("after: {}".format(env.needs_reset))
         obs, acs, ep_len, ep_ret = traj['ob'], traj['ac'], traj['ep_len'], traj['ep_ret']
         obs_list.append(obs)
         acs_list.append(acs)
@@ -187,6 +192,7 @@ def runner(env, policy_func, load_model_path, timesteps_per_batch, number_trajs,
         filename = load_model_path.split('/')[-1] + '.' + env.spec.id
         np.savez(filename, obs=np.array(obs_list), acs=np.array(acs_list),
                  lens=np.array(len_list), rets=np.array(ret_list))
+        import ipdb; ipdb.set_trace()
     avg_len = sum(len_list)/len(len_list)
     avg_ret = sum(ret_list)/len(ret_list)
     print("Average length:", avg_len)
@@ -195,10 +201,10 @@ def runner(env, policy_func, load_model_path, timesteps_per_batch, number_trajs,
 
 
 # Sample one trajectory (until trajectory end)
-def traj_1_generator(pi, env, horizon, stochastic):
+def traj_1_generator(pi, env, horizon, stochastic, play):
 
     t = 0
-    ac = env.action_space.sample()  # not used, just so we have the datatype
+    #ac = env.action_space.sample()  # not used, just so we have the datatype
     new = True  # marks if we're on first timestep of an episode
 
     ob = env.reset()
@@ -212,17 +218,21 @@ def traj_1_generator(pi, env, horizon, stochastic):
     acs = []
 
     while True:
+        import ipdb; ipdb.set_trace()
         ac, vpred = pi.act(stochastic, ob)
         obs.append(ob)
         news.append(new)
         acs.append(ac)
 
+        if play:
+            env.render()
         ob, rew, new, _ = env.step(ac)
         rews.append(rew)
 
         cur_ep_ret += rew
         cur_ep_len += 1
         if new or t >= horizon:
+            #env.reset()
             break
         t += 1
 
